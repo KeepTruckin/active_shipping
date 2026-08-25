@@ -9,12 +9,18 @@ services, databases, or daemons** to run. "Running" it means using it from Ruby 
 or `rake console`). Carrier integrations live in `lib/active_shipping/carriers/`.
 
 ### Toolchain / environment notes
-- Runs on the system **Ruby 3.2** (installed via apt) with **Bundler** and gems vendored
-  into `vendor/bundle` (`bundle config path` is set to `vendor/bundle`).
-- Gems are pinned via the **`Gemfile.lock`** (which the repo `.gitignore`s, so it lives in
-  the environment snapshot, not in git). The pins below make this Ruby-2.x-era code run on
-  Ruby 3.2. **Do not delete `Gemfile.lock` or run `bundle update`** without re-checking the
-  suite — regenerating it from scratch resolves to modern gems that break loading:
+- Runs on **Ruby 3.2** + **Bundler**. In Cloud Agent builds these are installed by the
+  environment `install` script (apt `ruby-full`/`ruby-dev` + `gem install bundler`), because
+  the base image ships without Ruby.
+- Gems install to **`$HOME/.bundle/gems`** via a **global** bundler config
+  (`bundle config set --global path "$HOME/.bundle/gems"`), **not** into `vendor/bundle`.
+  This is deliberate: `/workspace` (and anything under it, like `vendor/bundle` or a local
+  `.bundle/config`) is re-checked-out on every pod boot, so a workspace-local gem path does
+  **not** survive into a booted agent; `$HOME` does.
+- Gems are pinned via a **committed `Gemfile.lock`** (the root lock is intentionally tracked;
+  `gemfiles/*.lock` stays ignored). The pins below make this Ruby-2.x-era code run on
+  Ruby 3.2. **Do not run `bundle update`** without re-checking the suite — regenerating the
+  lock from scratch resolves to modern gems that break loading:
   - `concurrent-ruby 1.3.4` — later versions dropped the transitive `require 'logger'`, which
     breaks `activesupport 6.0`'s `LoggerThreadSafeLevel` at load time.
   - `minitest 5.15.0` — later versions removed the top-level `MiniTest` (camelCase) alias that
@@ -25,7 +31,8 @@ or `rake console`). Carrier integrations live in `lib/active_shipping/carriers/`
   `US/Eastern` / `US/Pacific` used by the FedEx tests (baked into the snapshot).
 
 ### Build / test / run (standard commands, from repo root)
-- Install/refresh deps: `bundle install` (this is the startup update script).
+- Install/refresh deps: `bundle install` (Ruby/bundler/tzdata bootstrap happens in the
+  environment `install` script; see "Toolchain / environment notes").
 - Unit tests (offline, mocked — the primary dev command): `bundle exec rake test:unit`
 - Remote/E2E tests (hit live carrier APIs, need credentials, otherwise skip):
   `bundle exec rake test:remote` — avoid in CI/offline; missing-credential suites self-skip.
